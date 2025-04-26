@@ -14,9 +14,10 @@ EspCommunication esp;
 TranzistorControl tranzistorControl;
 Schedule schedule;
 
-
-
-unsigned long lastMillisUpdate = 0;
+Schedule allSchedules[10];
+int scheduleCount = 0;
+unsigned long lastCheck = 0;
+const unsigned long interval = 60000;
 const float millisCorrectionFactor = 1.0 / 64.0;
 unsigned long correctedMillis() {
   return millis() * millisCorrectionFactor;
@@ -37,7 +38,7 @@ void setup() {
   TCCR1B = TCCR1B & B11111000 | B00000001;
   TCCR2B = TCCR2B & B11111000 | B00000001;
 
-  //timeReader.initialize();
+  timeReader.initialize();
 
 }
 
@@ -78,10 +79,19 @@ DataType getDataType(String incomingData) {
   }
 }
 
-Schedule allSchedules[10];
-int scheduleCount = 0;
-
 void loop() {
+  unsigned long now = correctedMillis();
+
+  if (now - lastCheck >= interval) {
+    lastCheck = now;
+
+    timeReader.updateTime();
+
+    for (int i = 0; i < scheduleCount; i++) {
+      //turn on harmonogram?? = bool Schedule::checkIfShouldTurnOn()
+    }
+  }
+
   while (esp.espSerial.available()) {
     char c = esp.espSerial.read();
     esp.incomingData += c;
@@ -115,6 +125,11 @@ void loop() {
           Serial.print(schedule.endHour);
           Serial.print(":");
           Serial.println(schedule.endMinute);
+          for (int i = 0; i<4;i++){
+            Serial.print("PWM: ");
+            Serial.print(schedule.pwm[i]);
+            Serial.print(" ");
+          }
           break;
       }
       esp.sendHTTPResponse();

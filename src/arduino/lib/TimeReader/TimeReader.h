@@ -8,11 +8,13 @@ public:
     int currentHour = 0;
     int currentMinute = 0;
     String currentDay = "";
+    RtcDateTime now;
 
     void printDateTime(const RtcDateTime& dt);
     void initialize();
-    void doLoop();
     void parseDate(int dateIndex, String incomingData);
+    void showTime();
+    void updateTime();
 };
 
 #endif // TIMEREADER_H

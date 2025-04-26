@@ -23,62 +23,24 @@ void TimeReader::printDateTime(const RtcDateTime& dt) {
 void TimeReader::initialize() {
     Rtc.Begin();
 
-    RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
-    printDateTime(compiled);
-    Serial.println();
-
-    if (!Rtc.IsDateTimeValid()) 
-    {
-        // Common Causes:
-        //    1) first time you ran and the device wasn't running yet
-        //    2) the battery on the device is low or even missing
-
+    if (!Rtc.IsDateTimeValid()) {
         Serial.println("RTC lost confidence in the DateTime!");
-        Rtc.SetDateTime(compiled);
     }
 
-    if (Rtc.GetIsWriteProtected())
-    {
-        Serial.println("RTC was write protected, enabling writing now");
-        Rtc.SetIsWriteProtected(false);
+    if (Rtc.GetIsWriteProtected()) {
+        Serial.print("RTC is write protected");
     }
 
-    if (!Rtc.GetIsRunning())
-    {
-        Serial.println("RTC was not actively running, starting now");
-        Rtc.SetIsRunning(true);
-    }
-
-    RtcDateTime now = Rtc.GetDateTime();
-    if (now < compiled) 
-    {
-        Serial.println("RTC is older than compile time!  (Updating DateTime)");
-        Rtc.SetDateTime(compiled);
-    }
-    else if (now > compiled) 
-    {
-        Serial.println("RTC is newer than compile time. (this is expected)");
-    }
-    else if (now == compiled) 
-    {
-        Serial.println("RTC is the same as compile time! (not expected but all is fine)");
-    }
+    if (!Rtc.GetIsRunning()) {
+        Serial.print("RTC is NOT running");
+    } 
 }
 
-void TimeReader::doLoop() {
-    RtcDateTime now = Rtc.GetDateTime();
-
+void TimeReader::showTime() {
+    this -> now = Rtc.GetDateTime();
+    Serial.print("DS1302 RTC DateTime: ");
     printDateTime(now);
     Serial.println();
-
-    if (!now.IsValid())
-    {
-        // Common Causes:
-        //    1) the battery on the device is low or even missing and the power line was disconnected
-        Serial.println("RTC lost confidence in the DateTime!");
-    }
-
-    delay(50000); // five seconds
 }
 
 void TimeReader::parseDate(int dateIndex, String incomingData) {
@@ -87,4 +49,26 @@ void TimeReader::parseDate(int dateIndex, String incomingData) {
     String time = incomingData.substring(spaceIndex + 1, spaceIndex + 5);
     this -> currentHour = time.substring(0, 2).toInt();
     this -> currentMinute = time.substring(2, 4).toInt();
+}
+
+void TimeReader::updateTime() {
+    this -> now = Rtc.GetDateTime();
+    this -> currentHour = now.Hour();
+    this -> currentMinute = now.Minute();
+    // int month = now.Day();
+    // int day = now.Month();
+    // int year = now.Year();
+
+    // char Date[11];
+    // sprintf(Date, "%02u/%02u/%04u", month, day, year);
+    // this -> currentDay = String(Date);
+
+    // Serial.println("Zaktualizowany czas: ");
+    // Serial.print(this -> currentDay);
+    // Serial.print(" ");
+//     Serial.print(this -> currentHour);
+//     Serial.print(":");
+//     Serial.print(this -> currentMinute);
+//     Serial.println();
+// }
 }
