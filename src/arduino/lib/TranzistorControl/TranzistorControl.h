@@ -4,6 +4,7 @@
 class TranzistorControl {
 public:
     int transistorPins[4] = {3,5,6,9}; // Array of transistor control pins
-    void turnOnLED(int pwm[4]);
+    void smoothTurnOnLED(int pwm[4]);
+    void smoothTurnOffLed(int pwm[4]);
 };
 #endif // TRANZISTOR_CONTROL_H

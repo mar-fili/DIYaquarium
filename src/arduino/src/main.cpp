@@ -7,6 +7,7 @@ enum DataType {
   DATE,
   SCHEDULE,
   RAW_LED_DATA,
+  NONE,
 };
 
 TimeReader timeReader;
@@ -74,7 +75,7 @@ DataType getDataType(String incomingData) {
     return DATE;
   } else if (incomingData.indexOf("Schedule") != -1) {
     return SCHEDULE;
-  } else {
+  } else if (incomingData.indexOf("Set") != -1) {
     return RAW_LED_DATA;
   }
 }
@@ -88,6 +89,7 @@ void loop() {
     timeReader.updateTime();
 
     for (int i = 0; i < scheduleCount; i++) {
+      allSchedules[i].checkForSchedule(timeReader.currentHour, timeReader.currentMinute);
       //turn on harmonogram?? = bool Schedule::checkIfShouldTurnOn()
     }
   }
@@ -109,7 +111,8 @@ void loop() {
           timeReader.parseDate(esp.incomingData.indexOf("Date") + 5, esp.incomingData);
           break;
         case RAW_LED_DATA:
-          tranzistorControl.turnOnLED(schedule.pwm);
+          Serial.println("Raw LED data received.");
+          //tranzistorControl.turnOnLED(schedule.pwm);
           break;
         case SCHEDULE:
           schedule.getScheduleTime(esp.incomingData);
@@ -135,96 +138,7 @@ void loop() {
       esp.sendHTTPResponse();
       esp.closeConnection();
       esp.incomingData = "";
+      dataType = NONE;
     }
   }
 }
-
-// #define countof(a) (sizeof(a) / sizeof(a[0]))
-
-// void printDateTime(const RtcDateTime& dt)
-// {
-//     char datestring[20];
-
-//     snprintf_P(datestring, 
-//             countof(datestring),
-//             PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
-//             dt.Month(),
-//             dt.Day(),
-//             dt.Year(),
-//             dt.Hour(),
-//             dt.Minute(),
-//             dt.Second() );
-//     Serial.print(datestring);
-// }
-
-// void setup () 
-// {
-//   TCCR0B = TCCR0B & B11111000 | B00000001;
-//   TCCR1B = TCCR1B & B11111000 | B00000001;
-//   TCCR2B = TCCR2B & B11111000 | B00000001;
-//     Serial.begin(9600);
-
-//     Serial.print("compiled: ");
-//     Serial.print(__DATE__);
-//     Serial.println(__TIME__);
-
-//     Rtc.Begin();
-
-//     RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
-//     printDateTime(compiled);
-//     Serial.println();
-
-//     if (!Rtc.IsDateTimeValid()) 
-//     {
-//         // Common Causes:
-//         //    1) first time you ran and the device wasn't running yet
-//         //    2) the battery on the device is low or even missing
-
-//         Serial.println("RTC lost confidence in the DateTime!");
-//         Rtc.SetDateTime(compiled);
-//     }
-
-//     if (Rtc.GetIsWriteProtected())
-//     {
-//         Serial.println("RTC was write protected, enabling writing now");
-//         Rtc.SetIsWriteProtected(false);
-//     }
-
-//     if (!Rtc.GetIsRunning())
-//     {
-//         Serial.println("RTC was not actively running, starting now");
-//         Rtc.SetIsRunning(true);
-//     }
-
-//     RtcDateTime now = Rtc.GetDateTime();
-//     if (now < compiled) 
-//     {
-//         Serial.println("RTC is older than compile time!  (Updating DateTime)");
-//         Rtc.SetDateTime(compiled);
-//     }
-//     else if (now > compiled) 
-//     {
-//         Serial.println("RTC is newer than compile time. (this is expected)");
-//     }
-//     else if (now == compiled) 
-//     {
-//         Serial.println("RTC is the same as compile time! (not expected but all is fine)");
-//     }
-// }
-
-// void loop () 
-// {
-//     RtcDateTime now = Rtc.GetDateTime();
-
-//     printDateTime(now);
-//     Serial.println();
-
-//     if (!now.IsValid())
-//     {
-//         // Common Causes:
-//         //    1) the battery on the device is low or even missing and the power line was disconnected
-//         Serial.println("RTC lost confidence in the DateTime!");
-//     }
-
-//     delay(50000); // five seconds
-// }

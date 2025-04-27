@@ -13,3 +13,11 @@ void TranzistorControl::turnOnLED(int pwm[4]) {
         }
       }
 }
+
+void TranzistorControl::turnOffLed(int pwm[4]) {
+    for (int i = 0; i < 4; i++) {
+        if (pwm[i] > 0) {
+            digitalWrite(this -> transistorPins[i], LOW);
+        }
+    }
+}

@@ -2,29 +2,6 @@
 #include "Schedule.h"
 #include "TranzistorControl.h"
 
-void Schedule::parseSchedule(String incomingData) {
-    int getIndex = incomingData.indexOf("GET");
-    getIndex += 5;
-
-    for (int i = 0; i < 4; i++) {
-      this -> pwm[i] = incomingData.substring(getIndex, getIndex + 4).toInt();
-      getIndex += 4;
-    }
-    Serial.print("PWM: ");
-    for (int i = 0; i < 4; i++) {
-      Serial.print(this -> pwm[i]); Serial.print(" ");
-    }
-    Serial.println();
-    String scheduleTime = incomingData.substring(getIndex, getIndex + 10);
-    Serial.print("Schedule time len: ");
-    Serial.println(scheduleTime.length());
-
-    if (scheduleTime.length() < 10) {
-        TranzistorControl tc;
-        tc.turnOnLED(this -> pwm);
-    }
-}
-
 void Schedule::getPWM(String incomingData) {
     int slashIndex = incomingData.indexOf('/');
     String dataPart = incomingData.substring(slashIndex);
@@ -59,6 +36,28 @@ void Schedule::getScheduleTime(String incomingData) {
             this->startMinute = startInt % 100;
             this->endHour = endInt / 100;
             this->endMinute = endInt % 100;
+        }
+    }
+}
+
+void Schedule::checkForSchedule(int currentHour, int currentMinute) {
+    int currentTime = currentHour * 60 + currentMinute;
+    int startTime = startHour * 60 + startMinute;
+    int endTime = endHour * 60 + endMinute;
+
+    if (!isActive) {
+        if (currentTime >= startTime && currentTime < endTime) {
+            isActive = true;
+            Serial.println("Schedule activated.");
+            TranzistorControl tranzistorControl;
+            tranzistorControl.turnOnLED(this -> pwm);
+        }
+    } else {
+        if (currentTime >= endTime) {
+            isActive = false;
+            Serial.println("Schedule deactivated.");
+            TranzistorControl tranzistorControl;
+            tranzistorControl.turnOffLed(this -> pwm);
         }
     }
 }

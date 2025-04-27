@@ -10,12 +10,9 @@ public:
     int endMinute;
     bool isActive = false; // Indicates if the schedule is currently active
 
-    void activateSchedule();
-    void deactivateSchedule();
-    void checkSchedule(int currentHour, int currentMinute);
-    void parseSchedule(String incomingData);
     void getPWM(String incomingData);
     void getScheduleTime(String incomingData);
+    void checkForSchedule(int currentHour, int currentMinute);
 };
 
 #endif // SCHEDULE_H

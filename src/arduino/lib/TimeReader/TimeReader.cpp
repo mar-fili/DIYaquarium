@@ -33,7 +33,9 @@ void TimeReader::initialize() {
 
     if (!Rtc.GetIsRunning()) {
         Serial.print("RTC is NOT running");
-    } 
+    }
+
+    updateTime();
 }
 
 void TimeReader::showTime() {
