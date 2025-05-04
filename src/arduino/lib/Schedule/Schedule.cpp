@@ -1,63 +1,128 @@
-#include "Arduino.h"
+// Schedule.cpp
 #include "Schedule.h"
-#include "TranzistorControl.h"
+#include <Arduino.h>
 
-void Schedule::getPWM(String incomingData) {
-    int slashIndex = incomingData.indexOf('/');
-    String dataPart = incomingData.substring(slashIndex);
+Schedule::Schedule() : head(nullptr) {}
 
-    int v1, v2, v3, v4;
-    if (sscanf(dataPart.c_str(), "%*s %d %d %d %d", &v1, &v2, &v3, &v4) == 4) {
-        this -> pwm[0] = v1;
-        this -> pwm[1] = v2;
-        this -> pwm[2] = v3;
-        this -> pwm[3] = v4;
-    } else {
-        Serial.println("Error parsing PWM values.");
+Schedule::~Schedule() {
+    freeScheduleList();  // Zwolnienie pamięci przy usuwaniu obiektu
+}
+
+Schedule::ScheduleNode* Schedule::parseBlueSchedule(const String& incomingData) {
+    int startIndex = incomingData.indexOf("b=");
+    int endIndex = incomingData.indexOf("&", startIndex);
+    if (startIndex == -1 || endIndex == -1) return nullptr;
+
+    String values = incomingData.substring(startIndex + 2, endIndex);  // "b=" to 2 znaki
+
+    ScheduleNode* tail = nullptr;
+
+    int lastPos = 0;
+    while (true) {
+        int semicolonPos = values.indexOf(';', lastPos);
+        String entry = (semicolonPos == -1) ? values.substring(lastPos) : values.substring(lastPos, semicolonPos);
+        if (entry.length() == 0) break;
+
+        int commaPos = entry.indexOf(',');
+        if (commaPos == -1) break;
+
+        String time = entry.substring(0, commaPos);
+        int pwm = entry.substring(commaPos + 1).toInt();
+
+        int colonPos = time.indexOf(':');
+        if (colonPos == -1) break;
+
+        int hour = time.substring(0, colonPos).toInt();
+        int minute = time.substring(colonPos + 1).toInt();
+
+        if (!head) {
+            ScheduleNode* newNode = new ScheduleNode{hour, minute, pwm,0, 0, 0, 3,nullptr};
+            head = newNode;
+            tail = newNode;
+        } else {
+            float minutes = (hour * 60 + minute) - (tail -> hour * 60 + tail -> minute); 
+            float deltaPwmPM = ((float)(pwm - tail->pwm) / minutes) * 255.0f / 100.0f;
+            ScheduleNode* newNode = new ScheduleNode{hour, minute, pwm,0, deltaPwmPM, 0, 3, nullptr};
+            tail->next = newNode;
+            tail = newNode;
+        }
+
+        if (semicolonPos == -1) break;
+        lastPos = semicolonPos + 1;
+    }
+
+    return head;
+}
+
+void Schedule::freeScheduleList() {
+    while (head != nullptr) {
+        ScheduleNode* tmp = head;
+        head = head->next;
+        delete tmp;
     }
 }
 
-void Schedule::getScheduleTime(String incomingData) {
-    int dashIndex = incomingData.indexOf('-');
-    if (dashIndex != -1) {
-        int startIndex = dashIndex - 1;
-        while (startIndex > 0 && isDigit(incomingData.charAt(startIndex - 1))) {
-            startIndex--;
+Schedule::ScheduleNode* Schedule::getScheduleHead() {
+    return head;
+}
+
+void Schedule::updatePWM(int currentHour, int currentMinute, ScheduleNode* head) {
+    if (head == nullptr || head->next == nullptr) return;
+
+    ScheduleNode* current = head;
+    int currentTimeInMinutes = currentHour * 60 + currentMinute;
+    
+    while (current->next != nullptr) {
+        int nodeStart = current->hour * 60 + current->minute;
+        int nodeEnd = current->next->hour * 60 + current->next->minute;
+
+        if (currentTimeInMinutes >= nodeStart && currentTimeInMinutes < nodeEnd) {
+            int elapsedMinutes = currentTimeInMinutes - nodeStart;
+
+            current->updatedPWM = (int)(current->pwm + current->next->deltaPwmPM * elapsedMinutes);
+            current->updatedPWM = constrain(current->updatedPWM, 0, 255);
         }
 
-        String startStr = incomingData.substring(startIndex, dashIndex);
-        String endStr = incomingData.substring(dashIndex + 1);
+        current = current->next;
+    }
 
-        if (startStr.length() > 0 && endStr.length() > 0 && isDigit(startStr.charAt(0)) && isDigit(endStr.charAt(0))) {
-            int startInt = startStr.toInt();
-            int endInt = endStr.toInt();
-
-            this->startHour = startInt / 100;
-            this->startMinute = startInt % 100;
-            this->endHour = endInt / 100;
-            this->endMinute = endInt % 100;
+    if (current->next == nullptr) {
+        int nodeStart = current->hour * 60 + current->minute;
+        if (currentTimeInMinutes > nodeStart) {
+            int elapsedMinutes = currentTimeInMinutes - nodeStart;
+            current->updatedPWM = (int)(current->pwm + current->deltaPwmPM * elapsedMinutes);
+            current->updatedPWM = constrain(current->updatedPWM, 0, 255);
         }
     }
 }
 
-void Schedule::checkForSchedule(int currentHour, int currentMinute) {
-    int currentTime = currentHour * 60 + currentMinute;
-    int startTime = startHour * 60 + startMinute;
-    int endTime = endHour * 60 + endMinute;
+void Schedule::checkForSchedule(int currentHour, int currentMinute, ScheduleNode* head) {
+    if (head == nullptr || head->next == nullptr) return;
 
-    if (!isActive) {
-        if (currentTime >= startTime && currentTime < endTime) {
-            isActive = true;
-            Serial.println("Schedule activated.");
-            TranzistorControl tranzistorControl;
-            tranzistorControl.turnOnLED(this -> pwm);
+    int currentTimeInMinutes = currentHour * 60 + currentMinute;
+    ScheduleNode* current = head;
+
+    while (current->next != nullptr) {
+        int start = current->hour * 60 + current->minute;
+        int end = current->next->hour * 60 + current->next->minute;
+        
+        if (currentTimeInMinutes >= start && currentTimeInMinutes < end) {
+
+            Serial.print("Aktywny harmonogram od ");
+            Serial.print(current->hour);
+            Serial.print(":");
+            Serial.print(current->minute);
+            Serial.print(" do ");
+            Serial.print(current->next->hour);
+            Serial.print(":");
+            Serial.println(current->next->minute);
+            Serial.println("PWM(analog-write-value): ");
+            Serial.print("PWM to analog write: " + String(current->updatedPWM));
+            Serial.println("Basic PWM: " + String(current->pwm ));
+
+            break;
         }
-    } else {
-        if (currentTime >= endTime) {
-            isActive = false;
-            Serial.println("Schedule deactivated.");
-            TranzistorControl tranzistorControl;
-            tranzistorControl.turnOffLed(this -> pwm);
-        }
+
+        current = current->next;
     }
 }

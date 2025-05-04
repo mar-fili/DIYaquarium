@@ -6,6 +6,7 @@
 enum DataType {
   DATE,
   SCHEDULE,
+  SCHED,
   RAW_LED_DATA,
   NONE,
 };
@@ -14,11 +15,12 @@ TimeReader timeReader;
 EspCommunication esp;
 TranzistorControl tranzistorControl;
 Schedule schedule;
+Schedule::ScheduleNode* head = nullptr;
 
 Schedule allSchedules[10];
 int scheduleCount = 0;
 unsigned long lastCheck = 0;
-const unsigned long interval = 60000;
+const unsigned long interval = 20000;
 const float millisCorrectionFactor = 1.0 / 64.0;
 unsigned long correctedMillis() {
   return millis() * millisCorrectionFactor;
@@ -73,10 +75,15 @@ void setup() {
 DataType getDataType(String incomingData) {
   if (incomingData.indexOf("Date") != -1) {
     return DATE;
+  } else if (incomingData.indexOf("SCHED") != -1) {
+    return SCHED;
   } else if (incomingData.indexOf("Schedule") != -1) {
     return SCHEDULE;
   } else if (incomingData.indexOf("Set") != -1) {
     return RAW_LED_DATA;
+  }
+  else {
+    return NONE;
   }
 }
 
@@ -87,54 +94,54 @@ void loop() {
     lastCheck = now;
 
     timeReader.updateTime();
-
-    for (int i = 0; i < scheduleCount; i++) {
-      allSchedules[i].checkForSchedule(timeReader.currentHour, timeReader.currentMinute);
-      //turn on harmonogram?? = bool Schedule::checkIfShouldTurnOn()
-    }
+    Serial.print("Aktualny czas: ");
+    Serial.print(timeReader.currentHour);
+    Serial.print(":");
+    Serial.println(timeReader.currentMinute);
+    // for (int i = 0; i < scheduleCount; i++) {
+    //   allSchedules[i].checkForSchedule(timeReader.currentHour, timeReader.currentMinute, );
+    // }
+    
+    schedule.updatePWM(timeReader.currentHour, timeReader.currentMinute, head);
+    schedule.checkForSchedule(timeReader.currentHour, timeReader.currentMinute, head);
+    
   }
-
   while (esp.espSerial.available()) {
     char c = esp.espSerial.read();
     esp.incomingData += c;
-    
+
     if (esp.incomingData.endsWith("OK")) {
-
       DataType dataType = getDataType(esp.incomingData);
-
-      if (dataType == RAW_LED_DATA || dataType == SCHEDULE) {
-        schedule.getPWM(esp.incomingData);
-      }
-      
+      Serial.println("Data type: " + String(dataType));
       switch (dataType) {
-        case DATE:
-          timeReader.parseDate(esp.incomingData.indexOf("Date") + 5, esp.incomingData);
-          break;
-        case RAW_LED_DATA:
-          Serial.println("Raw LED data received.");
-          //tranzistorControl.turnOnLED(schedule.pwm);
-          break;
-        case SCHEDULE:
-          schedule.getScheduleTime(esp.incomingData);
-          Schedule newSchedule = schedule;
-          allSchedules[scheduleCount] = newSchedule;
-          scheduleCount++;
+        case SCHED:
+          Serial.println("SCHED data received.");
+          head = schedule.parseBlueSchedule(esp.incomingData);
+          
+          if (head != nullptr) {
+            Serial.println("Harmonogram:");
 
-          Serial.print("Dodano harmonogram: ");
-          Serial.print(schedule.startHour);
-          Serial.print(":");
-          Serial.print(schedule.startMinute);
-          Serial.print(" - ");
-          Serial.print(schedule.endHour);
-          Serial.print(":");
-          Serial.println(schedule.endMinute);
-          for (int i = 0; i<4;i++){
-            Serial.print("PWM: ");
-            Serial.print(schedule.pwm[i]);
-            Serial.print(" ");
+            Schedule::ScheduleNode* current = head;
+            while (current != nullptr) {
+              current->pwm = current->pwm * 255 / 100;
+              Serial.print("Godzina: ");
+              Serial.print(current->hour);
+              Serial.print(":");
+              Serial.print(current->minute);
+              Serial.print(" → PWM: ");
+              Serial.println(current->pwm);
+              Serial.print("Delta PWM: ");
+              Serial.println(current->deltaPwmPM);
+
+              current = current->next;
+            }
+          } else {
+            Serial.println("Brak harmonogramu do wyświetlenia.");
           }
           break;
       }
+
+      Serial.println("Otrzymano dane: " + esp.incomingData);
       esp.sendHTTPResponse();
       esp.closeConnection();
       esp.incomingData = "";

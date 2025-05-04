@@ -2,6 +2,7 @@ import sys
 import json
 from PyQt5 import QtWidgets
 import pyqtgraph as pg
+import socket
 
 class MovablePoint(pg.ScatterPlotItem):
     def __init__(self, x, y, plot, color, schedule_editor):
@@ -41,10 +42,13 @@ class ScheduleEditor(QtWidgets.QMainWindow):
         self.central_widget = QtWidgets.QWidget(self)
         self.setCentralWidget(self.central_widget)
         self.layout = QtWidgets.QVBoxLayout(self.central_widget)
+        self.cmd = "Set 100 000 000 000"
 
-        self.plot = pg.PlotWidget()
-        self.plot.setLimits(xMin=0, xMax=24, yMin=0, yMax=100)
+        self.plot = pg.PlotWidget(axisItems={'bottom': TimeAxisItem(orientation='bottom')})
+        self.plot.setLimits(xMin=0, xMax=24)
+        self.plot.setLimits(yMin=0, yMax=100)
         self.plot.setRange(xRange=(0, 24), yRange=(0, 100))
+
         self.plot.showGrid(x=True, y=True)
         self.layout.addWidget(self.plot)
 
@@ -58,6 +62,10 @@ class ScheduleEditor(QtWidgets.QMainWindow):
             self.plot.plotItem.addItem(line)
 
         self.current_color = 'r'
+
+        self.send_button = QtWidgets.QPushButton("Wyslij")
+        self.send_button.clicked.connect(self.handle_send)
+        self.layout.addWidget(self.send_button)
 
         self.red_button = QtWidgets.QPushButton("Red", self)
         self.red_button.clicked.connect(lambda: self.set_color('r'))
@@ -80,6 +88,42 @@ class ScheduleEditor(QtWidgets.QMainWindow):
         self.layout.addWidget(self.export_button)
 
         self.plot.scene().sigMouseClicked.connect(self.on_click)
+
+    def handle_send(self):
+        parts = []
+        for color, points in self.points.items():
+            color_points = []
+            for point in points:
+                raw_x = round(point.x, 2)
+                hour = int(raw_x)
+                minute = int((raw_x - hour) * 60)
+                y = int(point.y)
+                color_points.append(f"{hour}:{minute},{y}")
+            
+            color_str = f"{color}=" + ';'.join(color_points)
+            parts.append(color_str)
+        
+        self.cmd = "SCHED?" + "&".join(parts)
+        try:
+            conn = socket.create_connection(('192.168.1.65', 80), timeout=5)
+        except socket.error as e:
+            raise ConnectionError(f"Connection failed: {e}")
+        
+        try:
+            request = ("GET /" + self.cmd).encode('utf-8')
+            conn.sendall(request)
+            response = b""
+            while True:
+                chunk = conn.recv(4096)
+                if not chunk:
+                    break
+                response += chunk
+            response = response.decode('utf-8')
+            print("Odpowiedź z urządzenia:", response)
+        except socket.error as e:
+            raise IOError(f"Send or read failed: {e}")
+        finally:
+            conn.close()
 
     def set_color(self, color):
         """Zmiana bieżącego koloru"""
@@ -118,6 +162,16 @@ class ScheduleEditor(QtWidgets.QMainWindow):
         with open('points_schedule.json', 'w') as json_file:
             json.dump(data, json_file, indent=4)
         print("Dane zapisane do points_schedule.json")
+
+class TimeAxisItem(pg.AxisItem):
+    def tickStrings(self, values, scale, spacing):
+        strings = []
+        for value in values:
+            total_minutes = int(value * 60)  # 1.5h -> 90 minut
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            strings.append(f"{hours:02d}:{minutes:02d}")
+        return strings
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

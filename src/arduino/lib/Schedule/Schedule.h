@@ -1,18 +1,33 @@
+// Schedule.h
 #ifndef SCHEDULE_H
 #define SCHEDULE_H
 
+#include <Arduino.h>
+
 class Schedule {
 public:
-    int pwm[4]; // PWM values for each transistor
-    int startHour;
-    int startMinute;
-    int endHour;
-    int endMinute;
-    bool isActive = false; // Indicates if the schedule is currently active
+    struct ScheduleNode {
+        int hour;
+        int minute;
+        int pwm;
+        int updatedPWM;
+        float deltaPwmPM;
+        float PWMCorrectionFactor;
+        int pinNumber;
+        ScheduleNode* next;
+    };
 
-    void getPWM(String incomingData);
-    void getScheduleTime(String incomingData);
-    void checkForSchedule(int currentHour, int currentMinute);
+    Schedule();
+    ~Schedule();
+
+    ScheduleNode* parseBlueSchedule(const String& incomingData);
+    void freeScheduleList();
+    void updatePWM(int currentHour, int currentMinute, ScheduleNode* head);
+    void checkForSchedule(int currentHour, int currentMinute, ScheduleNode* head);
+    ScheduleNode* getScheduleHead();
+
+private:
+    ScheduleNode* head;
 };
 
 #endif // SCHEDULE_H
