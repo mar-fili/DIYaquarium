@@ -15,7 +15,7 @@ TimeReader timeReader;
 EspCommunication esp;
 TranzistorControl tranzistorControl;
 Schedule schedule;
-Schedule::ScheduleNode* head = nullptr;
+Schedule::ScheduleNode* headTab [4] = {nullptr, nullptr, nullptr, nullptr};
 
 Schedule allSchedules[10];
 int scheduleCount = 0;
@@ -102,8 +102,8 @@ void loop() {
     //   allSchedules[i].checkForSchedule(timeReader.currentHour, timeReader.currentMinute, );
     // }
     
-    schedule.updatePWM(timeReader.currentHour, timeReader.currentMinute, head);
-    schedule.checkForSchedule(timeReader.currentHour, timeReader.currentMinute, head);
+    schedule.updatePWM(timeReader.currentHour, timeReader.currentMinute, headTab);
+    //schedule.checkForSchedule(timeReader.currentHour, timeReader.currentMinute, headTab);
     
   }
   while (esp.espSerial.available()) {
@@ -116,29 +116,39 @@ void loop() {
       switch (dataType) {
         case SCHED:
           Serial.println("SCHED data received.");
-          head = schedule.parseBlueSchedule(esp.incomingData);
-          
-          if (head != nullptr) {
-            Serial.println("Harmonogram:");
-
-            Schedule::ScheduleNode* current = head;
-            while (current != nullptr) {
-              current->pwm = current->pwm * 255 / 100;
-              Serial.print("Godzina: ");
-              Serial.print(current->hour);
-              Serial.print(":");
-              Serial.print(current->minute);
-              Serial.print(" → PWM: ");
-              Serial.println(current->pwm);
-              Serial.print("Delta PWM: ");
-              Serial.println(current->deltaPwmPM);
-
-              current = current->next;
-            }
-          } else {
-            Serial.println("Brak harmonogramu do wyświetlenia.");
+          if (esp.incomingData.indexOf("&b=") != -1) {
+            headTab[0] = schedule.parseSchedule(esp.incomingData, "b");
           }
-          break;
+          if (esp.incomingData.indexOf("?r=") != -1) {
+            headTab[1] = schedule.parseSchedule(esp.incomingData, "r");
+          }
+          if (esp.incomingData.indexOf("&wCold=") != -1) {
+            headTab[2] = schedule.parseSchedule(esp.incomingData, "wCold");
+          }
+          if (esp.incomingData.indexOf("&wWarm=") != -1) {
+            headTab[3] = schedule.parseSchedule(esp.incomingData, "wWarm");
+          }
+          
+          for (int i = 0; i < 4; i++) {
+            if (headTab[i] != nullptr) {
+              Serial.print("Harmonogram dla koloru: ");
+              Serial.println(i == 0 ? "b" : i == 1 ? "r" : i == 2 ? "wCold" : "wWarm");
+              Schedule::ScheduleNode* current = headTab[i];
+              while (current != nullptr) {
+                current->pwm *= 255 / 100;
+                current->pwm = constrain(current->pwm, 0, 255);
+                Serial.print("Godzina: ");
+                Serial.print(current->hour);
+                Serial.print(":");
+                Serial.print(current->minute);
+                Serial.print(" → PWM: ");
+                Serial.println(current->pwm);
+                current = current->next;
+              }
+            } else {
+              Serial.println("Brak harmonogramu dla koloru.");
+            }
+          }
       }
 
       Serial.println("Otrzymano dane: " + esp.incomingData);

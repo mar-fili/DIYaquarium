@@ -2,19 +2,33 @@
 #include "Schedule.h"
 #include <Arduino.h>
 
-Schedule::Schedule() : head(nullptr) {}
-
-Schedule::~Schedule() {
-    freeScheduleList();  // Zwolnienie pamięci przy usuwaniu obiektu
-}
-
-Schedule::ScheduleNode* Schedule::parseBlueSchedule(const String& incomingData) {
-    int startIndex = incomingData.indexOf("b=");
+Schedule::ScheduleNode* Schedule::parseSchedule(const String& incomingData, String color) {
+    int pinNumber;
+    if (color == "b") {
+        pinNumber = 6;
+    } else if (color == "r") {
+        pinNumber = 9;
+    } else if (color == "wCold") {
+        pinNumber = 5;
+    } else if (color == "wWarm") {
+        pinNumber = 3;
+    } else {
+        return nullptr;
+    }
+    int startIndex = incomingData.indexOf(color + "=");
     int endIndex = incomingData.indexOf("&", startIndex);
+    
     if (startIndex == -1 || endIndex == -1) return nullptr;
 
-    String values = incomingData.substring(startIndex + 2, endIndex);  // "b=" to 2 znaki
+    String values;
+    if (color == "b" || color == "r") {
+        values = incomingData.substring(startIndex + 2, endIndex);
+    } else {
+        values = incomingData.substring(startIndex + 6, endIndex);
+    }
+    
 
+    ScheduleNode* head = nullptr;
     ScheduleNode* tail = nullptr;
 
     int lastPos = 0;
@@ -36,13 +50,13 @@ Schedule::ScheduleNode* Schedule::parseBlueSchedule(const String& incomingData) 
         int minute = time.substring(colonPos + 1).toInt();
 
         if (!head) {
-            ScheduleNode* newNode = new ScheduleNode{hour, minute, pwm,0, 0, 0, 3,nullptr};
+            ScheduleNode* newNode = new ScheduleNode{hour, minute, pwm,0, 0, 0, pinNumber,nullptr};
             head = newNode;
             tail = newNode;
         } else {
             float minutes = (hour * 60 + minute) - (tail -> hour * 60 + tail -> minute); 
             float deltaPwmPM = ((float)(pwm - tail->pwm) / minutes) * 255.0f / 100.0f;
-            ScheduleNode* newNode = new ScheduleNode{hour, minute, pwm,0, deltaPwmPM, 0, 3, nullptr};
+            ScheduleNode* newNode = new ScheduleNode{hour, minute, pwm,0, deltaPwmPM, 0, pinNumber, nullptr};
             tail->next = newNode;
             tail = newNode;
         }
@@ -54,75 +68,98 @@ Schedule::ScheduleNode* Schedule::parseBlueSchedule(const String& incomingData) 
     return head;
 }
 
-void Schedule::freeScheduleList() {
-    while (head != nullptr) {
-        ScheduleNode* tmp = head;
-        head = head->next;
-        delete tmp;
+void Schedule::updatePWM(int currentHour, int currentMinute, ScheduleNode* headTab[4]) {
+    for (int i = 0; i < 4; i++) {
+        ScheduleNode* current = headTab[i];
+        if (current == nullptr) continue;
+
+        int currentTimeInMinutes = currentHour * 60 + currentMinute;
+        while (current->next != nullptr) {
+            int nodeStart = current->hour * 60 + current->minute;
+            int nodeEnd = current->next->hour * 60 + current->next->minute;
+
+            if (currentTimeInMinutes >= nodeStart && currentTimeInMinutes < nodeEnd) {
+                int elapsedMinutes = currentTimeInMinutes - nodeStart;
+                int computedPWM = (int)(current->pwm + current->next->deltaPwmPM * elapsedMinutes);
+                computedPWM = constrain(computedPWM, 0, 255);
+                if (computedPWM != current->updatedPWM) {
+                    current->updatedPWM = computedPWM;
+                    Serial.print("Aktualizacja PWM: ");
+                    Serial.print(current->updatedPWM);
+                    Serial.print(" dla koloru: ");
+                    Serial.println(i == 0 ? "b" : i == 1 ? "r" : i == 2 ? "wCold" : "wWarm");
+                    Serial.print("Pin: ");
+                    Serial.println(current->pinNumber);
+                    Serial.print("Godzina: ");
+                    Serial.print(current->hour);
+                    Serial.print(":");
+                    Serial.print(current->minute);
+                    if (current -> updatedPWM == 0) {
+                        analogWrite(current->pinNumber, LOW);
+                    } else {
+                        analogWrite(current->pinNumber, current->updatedPWM);
+                    }
+                }
+            }
+
+            current = current->next;
+        }
+
+        if (current->next == nullptr) {
+            int nodeStart = current->hour * 60 + current->minute;
+            if (currentTimeInMinutes > nodeStart && currentTimeInMinutes <= current -> hour * 60 + current->minute + 60) {
+                int elapsedMinutes = currentTimeInMinutes - nodeStart;
+                int computedPWM = (int)(current->pwm + current->deltaPwmPM * elapsedMinutes);
+                computedPWM = constrain(computedPWM, 0, 255);
+                if (computedPWM != current->updatedPWM) {
+                    current->updatedPWM = computedPWM;
+                    Serial.print("Aktualizacja PWM: ");
+                    Serial.print(current->updatedPWM);
+                    Serial.print(" dla koloru: ");
+                    Serial.println(i == 0 ? "b" : i == 1 ? "r" : i == 2 ? "wCold" : "wWarm");
+                    Serial.print("Pin: ");
+                    Serial.println(current->pinNumber);
+                    Serial.print("Godzina: ");
+                    Serial.print(current->hour);
+                    Serial.print(":");
+                    Serial.print(current->minute);
+                    if (current -> updatedPWM == 0) {
+                        analogWrite(current->pinNumber, LOW);
+                    } else {
+                        analogWrite(current->pinNumber, current->updatedPWM);
+                    }
+                }
+            }
+        }
     }
 }
 
-Schedule::ScheduleNode* Schedule::getScheduleHead() {
-    return head;
-}
+void Schedule::checkForSchedule(int currentHour, int currentMinute, ScheduleNode* headTab[4]) {
+    for (int i = 0; i < 4; i++) {
+        ScheduleNode* current = headTab[i];
+        if (current == nullptr) continue;
 
-void Schedule::updatePWM(int currentHour, int currentMinute, ScheduleNode* head) {
-    if (head == nullptr || head->next == nullptr) return;
+        int currentTimeInMinutes = currentHour * 60 + currentMinute;
+        while (current->next != nullptr) {
+            int start = current->hour * 60 + current->minute;
+            int end = current->next->hour * 60 + current->next->minute;
 
-    ScheduleNode* current = head;
-    int currentTimeInMinutes = currentHour * 60 + currentMinute;
-    
-    while (current->next != nullptr) {
-        int nodeStart = current->hour * 60 + current->minute;
-        int nodeEnd = current->next->hour * 60 + current->next->minute;
+            if (currentTimeInMinutes >= start && currentTimeInMinutes < end) {
+                Serial.print("Aktywny harmonogram od ");
+                Serial.print(current->hour);
+                Serial.print(":");
+                Serial.print(current->minute);
+                Serial.print(" do ");
+                Serial.print(current->next->hour);
+                Serial.print(":");
+                Serial.println(current->next->minute);
+                Serial.println("PWM(analog-write-value): ");
+                Serial.print("PWM to analog write: " + String(current->updatedPWM));
+                Serial.println("Basic PWM: " + String(current->pwm));
+                break;
+            }
 
-        if (currentTimeInMinutes >= nodeStart && currentTimeInMinutes < nodeEnd) {
-            int elapsedMinutes = currentTimeInMinutes - nodeStart;
-
-            current->updatedPWM = (int)(current->pwm + current->next->deltaPwmPM * elapsedMinutes);
-            current->updatedPWM = constrain(current->updatedPWM, 0, 255);
+            current = current->next;
         }
-
-        current = current->next;
-    }
-
-    if (current->next == nullptr) {
-        int nodeStart = current->hour * 60 + current->minute;
-        if (currentTimeInMinutes > nodeStart) {
-            int elapsedMinutes = currentTimeInMinutes - nodeStart;
-            current->updatedPWM = (int)(current->pwm + current->deltaPwmPM * elapsedMinutes);
-            current->updatedPWM = constrain(current->updatedPWM, 0, 255);
-        }
-    }
-}
-
-void Schedule::checkForSchedule(int currentHour, int currentMinute, ScheduleNode* head) {
-    if (head == nullptr || head->next == nullptr) return;
-
-    int currentTimeInMinutes = currentHour * 60 + currentMinute;
-    ScheduleNode* current = head;
-
-    while (current->next != nullptr) {
-        int start = current->hour * 60 + current->minute;
-        int end = current->next->hour * 60 + current->next->minute;
-        
-        if (currentTimeInMinutes >= start && currentTimeInMinutes < end) {
-
-            Serial.print("Aktywny harmonogram od ");
-            Serial.print(current->hour);
-            Serial.print(":");
-            Serial.print(current->minute);
-            Serial.print(" do ");
-            Serial.print(current->next->hour);
-            Serial.print(":");
-            Serial.println(current->next->minute);
-            Serial.println("PWM(analog-write-value): ");
-            Serial.print("PWM to analog write: " + String(current->updatedPWM));
-            Serial.println("Basic PWM: " + String(current->pwm ));
-
-            break;
-        }
-
-        current = current->next;
     }
 }

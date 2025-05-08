@@ -4,9 +4,17 @@ from PyQt5 import QtWidgets
 import pyqtgraph as pg
 import socket
 
+
+COLOR_MAP = {
+    'r': 'red',
+    'b': 'blue',
+    'wWarm': (255, 165, 0),
+    'wCold': (173, 216, 230)
+}
+
 class MovablePoint(pg.ScatterPlotItem):
     def __init__(self, x, y, plot, color, schedule_editor):
-        super().__init__(pos=[[x, y]], size=10, brush=pg.mkBrush(color), pen=pg.mkPen('k'), symbol='o')
+        super().__init__(pos=[[x, y]], size=10, brush=pg.mkBrush(COLOR_MAP[color]), pen=pg.mkPen('k'), symbol='o')
         self.setZValue(10)
         self.plot = plot
         self.schedule_editor = schedule_editor
@@ -15,7 +23,7 @@ class MovablePoint(pg.ScatterPlotItem):
         self.x = x
         self.y = y
         self.color = color
-        self.setBrush(pg.mkBrush(color))
+        self.setBrush(pg.mkBrush(COLOR_MAP[color]))
 
     def mouseDragEvent(self, ev):
         if ev.button() == pg.QtCore.Qt.LeftButton:
@@ -52,12 +60,11 @@ class ScheduleEditor(QtWidgets.QMainWindow):
         self.plot.showGrid(x=True, y=True)
         self.layout.addWidget(self.plot)
 
-        self.points = {'r': [], 'g': [], 'b': [], 'y': []}
-        self.lines = {'r': pg.PlotDataItem(pen=pg.mkPen('r', width=2)),
-                      'g': pg.PlotDataItem(pen=pg.mkPen('g', width=2)),
-                      'b': pg.PlotDataItem(pen=pg.mkPen('b', width=2)),
-                      'y': pg.PlotDataItem(pen=pg.mkPen('y', width=2))}
-        
+        self.points = {'r': [], 'wWarm': [], 'b': [], 'wCold': []}
+        self.lines = {
+            color: pg.PlotDataItem(pen=pg.mkPen(COLOR_MAP[color], width=2))
+            for color in COLOR_MAP
+        }
         for line in self.lines.values():
             self.plot.plotItem.addItem(line)
 
@@ -71,16 +78,16 @@ class ScheduleEditor(QtWidgets.QMainWindow):
         self.red_button.clicked.connect(lambda: self.set_color('r'))
         self.layout.addWidget(self.red_button)
 
-        self.green_button = QtWidgets.QPushButton("Green", self)
-        self.green_button.clicked.connect(lambda: self.set_color('g'))
+        self.green_button = QtWidgets.QPushButton("wWarm", self)
+        self.green_button.clicked.connect(lambda: self.set_color('wWarm'))
         self.layout.addWidget(self.green_button)
 
         self.blue_button = QtWidgets.QPushButton("Blue", self)
         self.blue_button.clicked.connect(lambda: self.set_color('b'))
         self.layout.addWidget(self.blue_button)
 
-        self.yellow_button = QtWidgets.QPushButton("Yellow", self)
-        self.yellow_button.clicked.connect(lambda: self.set_color('y'))
+        self.yellow_button = QtWidgets.QPushButton("wCold", self)
+        self.yellow_button.clicked.connect(lambda: self.set_color('wCold'))
         self.layout.addWidget(self.yellow_button)
 
         self.export_button = QtWidgets.QPushButton("Export to JSON", self)
@@ -110,6 +117,7 @@ class ScheduleEditor(QtWidgets.QMainWindow):
             raise ConnectionError(f"Connection failed: {e}")
         
         try:
+            self.cmd = self.cmd + "&"
             request = ("GET /" + self.cmd).encode('utf-8')
             conn.sendall(request)
             response = b""
