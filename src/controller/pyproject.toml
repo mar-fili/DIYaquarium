@@ -1,0 +1,13 @@
+[project]
+name = "LED_controller"
+version = "0.1.0"
+description = "Graphical LED scheduler controller for DIY aquarium"
+dependencies = [
+    "PyQt5",
+    "pyqtgraph"
+]
+requires-python = ">=3.8"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

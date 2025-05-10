@@ -84,7 +84,7 @@ void Schedule::updatePWM(int currentHour, int currentMinute, ScheduleNode* headT
             int nodeStart = current->hour * 60 + current->minute;
             int nodeEnd = current->next->hour * 60 + current->next->minute;
 
-            if (currentTimeInMinutes >= nodeStart && currentTimeInMinutes < nodeEnd) {
+            if (currentTimeInMinutes >= nodeStart && currentTimeInMinutes <= nodeEnd) {
                 int elapsedMinutes = currentTimeInMinutes - nodeStart;
                 int computedPWM = (int)(current->pwm + current->next->deltaPwmPM * elapsedMinutes);
                 computedPWM = constrain(computedPWM, 0, 255);
@@ -101,7 +101,7 @@ void Schedule::updatePWM(int currentHour, int currentMinute, ScheduleNode* headT
                     Serial.print(":");
                     Serial.print(current->minute);
                     if (current -> updatedPWM == 0) {
-                        analogWrite(current->pinNumber, LOW);
+                        digitalWrite(current->pinNumber, LOW);
                     } else {
                         analogWrite(current->pinNumber, current->updatedPWM);
                     }
@@ -109,33 +109,6 @@ void Schedule::updatePWM(int currentHour, int currentMinute, ScheduleNode* headT
             }
 
             current = current->next;
-        }
-
-        if (current->next == nullptr) {
-            int nodeStart = current->hour * 60 + current->minute;
-            if (currentTimeInMinutes > nodeStart && currentTimeInMinutes <= current -> hour * 60 + current->minute + 60) {
-                int elapsedMinutes = currentTimeInMinutes - nodeStart;
-                int computedPWM = (int)(current->pwm + current->deltaPwmPM * elapsedMinutes);
-                computedPWM = constrain(computedPWM, 0, 255);
-                if (computedPWM != current->updatedPWM) {
-                    current->updatedPWM = computedPWM;
-                    Serial.print("Aktualizacja PWM: ");
-                    Serial.print(current->updatedPWM);
-                    Serial.print(" dla koloru: ");
-                    Serial.println(i == 0 ? "b" : i == 1 ? "r" : i == 2 ? "wCold" : "wWarm");
-                    Serial.print("Pin: ");
-                    Serial.println(current->pinNumber);
-                    Serial.print("Godzina: ");
-                    Serial.print(current->hour);
-                    Serial.print(":");
-                    Serial.print(current->minute);
-                    if (current -> updatedPWM == 0) {
-                        analogWrite(current->pinNumber, LOW);
-                    } else {
-                        analogWrite(current->pinNumber, current->updatedPWM);
-                    }
-                }
-            }
         }
     }
 }
