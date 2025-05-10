@@ -119,7 +119,7 @@ void loop() {
           if (esp.incomingData.indexOf("&b=") != -1) {
             headTab[0] = schedule.parseSchedule(esp.incomingData, "b");
           }
-          if (esp.incomingData.indexOf("?r=") != -1) {
+          if (esp.incomingData.indexOf("&r=") != -1) {
             headTab[1] = schedule.parseSchedule(esp.incomingData, "r");
           }
           if (esp.incomingData.indexOf("&wCold=") != -1) {
@@ -135,8 +135,6 @@ void loop() {
               Serial.println(i == 0 ? "b" : i == 1 ? "r" : i == 2 ? "wCold" : "wWarm");
               Schedule::ScheduleNode* current = headTab[i];
               while (current != nullptr) {
-                current->pwm *= 255 / 100;
-                current->pwm = constrain(current->pwm, 0, 255);
                 Serial.print("Godzina: ");
                 Serial.print(current->hour);
                 Serial.print(":");

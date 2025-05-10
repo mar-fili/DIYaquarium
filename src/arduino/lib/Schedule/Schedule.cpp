@@ -42,6 +42,8 @@ Schedule::ScheduleNode* Schedule::parseSchedule(const String& incomingData, Stri
 
         String time = entry.substring(0, commaPos);
         int pwm = entry.substring(commaPos + 1).toInt();
+        pwm = round((float)pwm * 2.55);
+        pwm = constrain(pwm, 0, 255);
 
         int colonPos = time.indexOf(':');
         if (colonPos == -1) break;
@@ -54,8 +56,12 @@ Schedule::ScheduleNode* Schedule::parseSchedule(const String& incomingData, Stri
             head = newNode;
             tail = newNode;
         } else {
-            float minutes = (hour * 60 + minute) - (tail -> hour * 60 + tail -> minute); 
-            float deltaPwmPM = ((float)(pwm - tail->pwm) / minutes) * 255.0f / 100.0f;
+            float minutes = (hour * 60 + minute) - (tail->hour * 60 + tail->minute); 
+            float deltaPwmPM = 0.0f;
+
+            if (minutes != 0) {
+                deltaPwmPM = (float)(pwm - tail->pwm) / minutes;
+            }
             ScheduleNode* newNode = new ScheduleNode{hour, minute, pwm,0, deltaPwmPM, 0, pinNumber, nullptr};
             tail->next = newNode;
             tail = newNode;

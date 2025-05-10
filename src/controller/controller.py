@@ -108,16 +108,14 @@ class ScheduleEditor(QtWidgets.QMainWindow):
                 color_points.append(f"{hour}:{minute},{y}")
             
             color_str = f"{color}=" + ';'.join(color_points)
-            parts.append(color_str)
-        
-        self.cmd = "SCHED?" + "&".join(parts)
+            if len(color_points) > 0:
+                self.cmd = "SCHED?" + "&" + color_str + "&"
         try:
             conn = socket.create_connection(('192.168.1.65', 80), timeout=5)
         except socket.error as e:
             raise ConnectionError(f"Connection failed: {e}")
         
         try:
-            self.cmd = self.cmd + "&"
             request = ("GET /" + self.cmd).encode('utf-8')
             conn.sendall(request)
             response = b""
