@@ -35,9 +35,9 @@ int EspCommunication::getClientId() {
     }
 }
 
-void EspCommunication::sendHTTPResponse() {
+void EspCommunication::sendHTTPResponse(String response) {
     this -> clientId = getClientId();
-    String body = "OK";
+    String body = response;
     sprintf(this->buffer, "AT+CIPSEND=%d,%d", this->clientId, body.length());
     sendCommand(this->buffer, 2000);
     sendCommand(body, 2000);

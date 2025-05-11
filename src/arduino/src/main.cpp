@@ -2,15 +2,16 @@
 #include <EspCommunication.h>
 #include <Schedule.h>
 #include <TimeReader.h>
+#include <DS18B20.h>
 
 enum DataType {
   DATE,
-  SCHEDULE,
   SCHED,
-  RAW_LED_DATA,
+  TEMP,
   NONE,
 };
 
+DS18B20 sensor(7);
 TimeReader timeReader;
 EspCommunication esp;
 TranzistorControl tranzistorControl;
@@ -22,6 +23,8 @@ int scheduleCount = 0;
 unsigned long lastCheck = 0;
 const unsigned long interval = 20000;
 const float millisCorrectionFactor = 1.0 / 64.0;
+
+
 unsigned long correctedMillis() {
   return millis() * millisCorrectionFactor;
 }
@@ -35,6 +38,8 @@ void setup() {
   Serial.begin(9600);
   delay(2000);
   esp.initialize();
+  sensor.begin();
+  Serial.println("Czujnik temperatury uruchomiony");
 
   Serial.println("Zmieniam timery");
   TCCR0B = TCCR0B & B11111000 | B00000001;
@@ -45,44 +50,14 @@ void setup() {
 
 }
 
-//---------------------------------------------- Set PWM frequency for D5 & D6 -------------------------------
-
-//TCCR0B = TCCR0B & B11111000 | B00000001;    // set timer 0 divisor to     1 for PWM frequency of 62500.00 Hz
-//TCCR0B = TCCR0B & B11111000 | B00000010;    // set timer 0 divisor to     8 for PWM frequency of  7812.50 Hz
-//TCCR0B = TCCR0B & B11111000 | B00000011;    // set timer 0 divisor to    64 for PWM frequency of   976.56 Hz (The DEFAULT)
-//TCCR0B = TCCR0B & B11111000 | B00000100;    // set timer 0 divisor to   256 for PWM frequency of   244.14 Hz
-//TCCR0B = TCCR0B & B11111000 | B00000101;    // set timer 0 divisor to  1024 for PWM frequency of    61.04 Hz
-
-
-//---------------------------------------------- Set PWM frequency for D9 & D10 ------------------------------
-
-//TCCR1B = TCCR1B & B11111000 | B00000001;    // set timer 1 divisor to     1 for PWM frequency of 31372.55 Hz
-//TCCR1B = TCCR1B & B11111000 | B00000010;    // set timer 1 divisor to     8 for PWM frequency of  3921.16 Hz
-//TCCR1B = TCCR1B & B11111000 | B00000011;    // set timer 1 divisor to    64 for PWM frequency of   490.20 Hz (The DEFAULT)
-//TCCR1B = TCCR1B & B11111000 | B00000100;    // set timer 1 divisor to   256 for PWM frequency of   122.55 Hz
-//TCCR1B = TCCR1B & B11111000 | B00000101;    // set timer 1 divisor to  1024 for PWM frequency of    30.64 Hz
-
-//---------------------------------------------- Set PWM frequency for D3 & D11 ------------------------------
-
-//TCCR2B = TCCR2B & B11111000 | B00000001;    // set timer 2 divisor to     1 for PWM frequency of 31372.55 Hz
-//TCCR2B = TCCR2B & B11111000 | B00000010;    // set timer 2 divisor to     8 for PWM frequency of  3921.16 Hz
-//TCCR2B = TCCR2B & B11111000 | B00000011;    // set timer 2 divisor to    32 for PWM frequency of   980.39 Hz
-//TCCR2B = TCCR2B & B11111000 | B00000100;    // set timer 2 divisor to    64 for PWM frequency of   490.20 Hz (The DEFAULT)
-//TCCR2B = TCCR2B & B11111000 | B00000101;    // set timer 2 divisor to   128 for PWM frequency of   245.10 Hz
-//TCCR2B = TCCR2B & B11111000 | B00000110;    // set timer 2 divisor to   256 for PWM frequency of   122.55 Hz
-//TCCR2B = TCCR2B & B11111000 | B00000111;    // set timer 2 divisor to  1024 for PWM frequency of    30.64 Hz
-
 DataType getDataType(String incomingData) {
   if (incomingData.indexOf("Date") != -1) {
     return DATE;
   } else if (incomingData.indexOf("SCHED") != -1) {
     return SCHED;
-  } else if (incomingData.indexOf("Schedule") != -1) {
-    return SCHEDULE;
-  } else if (incomingData.indexOf("Set") != -1) {
-    return RAW_LED_DATA;
-  }
-  else {
+  } else if (incomingData.indexOf("Temp") != -1) {
+    return TEMP;
+  } else {
     return NONE;
   }
 }
@@ -98,13 +73,8 @@ void loop() {
     Serial.print(timeReader.currentHour);
     Serial.print(":");
     Serial.println(timeReader.currentMinute);
-    // for (int i = 0; i < scheduleCount; i++) {
-    //   allSchedules[i].checkForSchedule(timeReader.currentHour, timeReader.currentMinute, );
-    // }
-    
+
     schedule.updatePWM(timeReader.currentHour, timeReader.currentMinute, headTab);
-    //schedule.checkForSchedule(timeReader.currentHour, timeReader.currentMinute, headTab);
-    
   }
   while (esp.espSerial.available()) {
     char c = esp.espSerial.read();
@@ -147,13 +117,26 @@ void loop() {
               Serial.println("Brak harmonogramu dla koloru.");
             }
           }
+          Serial.println("Otrzymano dane: " + esp.incomingData);
+          esp.sendHTTPResponse("OK");
+          esp.closeConnection();
+          esp.incomingData = "";
+          dataType = NONE;
+          break;
+        case NONE:
+          Serial.println("No valid data received.");
+          esp.incomingData = "";
+          break;
+        case TEMP:
+          Serial.println("TEMP data received.");
+          float tempC = sensor.readTemperatureC();
+          esp.sendHTTPResponse(String(tempC));
+          esp.closeConnection();
+          esp.incomingData = "";
+          dataType = NONE;
+          break;
       }
-
-      Serial.println("Otrzymano dane: " + esp.incomingData);
-      esp.sendHTTPResponse();
-      esp.closeConnection();
-      esp.incomingData = "";
-      dataType = NONE;
+      
     }
   }
 }

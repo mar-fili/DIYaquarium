@@ -17,7 +17,7 @@ class EspCommunication {
         void initialize();
         void sendCommand(String command, int timeout);
         int getClientId();
-        void sendHTTPResponse();
+        void sendHTTPResponse(String response);
         void closeConnection();
     };
     

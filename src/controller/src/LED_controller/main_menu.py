@@ -13,9 +13,16 @@ class MainMenu(QtWidgets.QWidget):
         btn_schedule.clicked.connect(self.open_schedule_editor)
         layout.addWidget(btn_schedule)
 
+        btn_temperature = QtWidgets.QPushButton("Pomiar temperatury")
+        btn_temperature.clicked.connect(self.open_temperature)
+        layout.addWidget(btn_temperature)
+
         btn_exit = QtWidgets.QPushButton("Wyjście")
         btn_exit.clicked.connect(QtWidgets.qApp.quit)
         layout.addWidget(btn_exit)
 
     def open_schedule_editor(self):
         self.stacked_widget.setCurrentIndex(1)
+    
+    def open_temperature(self):
+        self.stacked_widget.setCurrentIndex(2)

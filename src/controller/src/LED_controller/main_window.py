@@ -1,6 +1,7 @@
 from PyQt5 import QtWidgets
 from LED_controller.main_menu import MainMenu
 from LED_controller.ui import ScheduleEditor
+from LED_controller.temperature_window import TemperatureWindow
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -13,8 +14,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.main_menu = MainMenu(self.stacked_widget)
         self.schedule_editor = ScheduleEditor(self.stacked_widget)
+        self.temperature_window = TemperatureWindow(self.stacked_widget)
 
         self.stacked_widget.addWidget(self.main_menu)         # index 0
         self.stacked_widget.addWidget(self.schedule_editor)   # index 1
+        self.stacked_widget.addWidget(self.temperature_window)#index 2
 
         self.stacked_widget.setCurrentIndex(0)

@@ -68,7 +68,6 @@ class ScheduleEditor(QtWidgets.QMainWindow):
         self.plot.scene().sigMouseClicked.connect(self.on_click)
 
     def handle_send(self):
-        parts = []
         for color, points in self.points.items():
             color_points = []
             for point in points:
@@ -81,6 +80,8 @@ class ScheduleEditor(QtWidgets.QMainWindow):
             color_str = f"{color}=" + ';'.join(color_points)
             if len(color_points) > 0:
                 self.cmd = "SCHED?" + "&" + color_str + "&"
+            else:
+                continue
             try:
                 conn = socket.create_connection(('192.168.1.65', 80), timeout=5)
             except socket.error as e:
